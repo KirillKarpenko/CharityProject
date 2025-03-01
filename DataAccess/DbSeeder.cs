@@ -15,10 +15,10 @@ public static class DbSeeder
 
         var rnd = new Random();
 
-        var donor1Id = Guid.NewGuid().ToString();
+        var donor1Id = Guid.NewGuid();
         donors.Add(new Donor
         {
-            Id = donor1Id,
+            Id = donor1Id.ToString(),
             Name = "One fund donor",
             PhoneNumber = "380599000000",
             Email = "1t1mer@mail.com",
@@ -29,28 +29,20 @@ public static class DbSeeder
             donations.Add(new Donation
             {
                 Id = Guid.NewGuid().ToString(),
-                DonorId = donor1Id,
+                DonorId = donor1Id.ToString(),
                 OrganizationId = org.Id,
                 TimeOfOperation = DateTime.Now,
                 Amount = rnd.Next(1000, 10000),
             });
         }
 
-        var donor2Id = Guid.NewGuid().ToString();
+        var donor2Id = Guid.NewGuid();
         donors.Add(new Donor
         {
-            Id = donor2Id,
+            Id = donor2Id.ToString(),
             Name = "Mr. White",
             PhoneNumber = "380699000000",
             Email = "Org3lover@mail.com",
-        });
-        donations.Add(new Donation
-        {
-            Id = Guid.NewGuid().ToString(),
-            DonorId = donor2Id,
-            OrganizationId = "143e7fda-51b1-49d6-a915-6f931ef38a1b",
-            TimeOfOperation = DateTime.Now,
-            Amount = 150000,
         });
 
         for (int i = 1; i <= 5; i++)
@@ -93,6 +85,18 @@ public static class DbSeeder
                     AdministrativeSpending = rnd.Next(1000, 5000),
                     MaterialsSpending = rnd.Next(2000, 7000),
                     LabourSpending = rnd.Next(3000, 8000),
+                });
+            }
+
+            if (i == 1)
+            {
+                donations.Add(new Donation
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    DonorId = donor2Id.ToString(),
+                    OrganizationId = orgId.ToString(),
+                    TimeOfOperation = DateTime.Now,
+                    Amount = 150000,
                 });
             }
         }
