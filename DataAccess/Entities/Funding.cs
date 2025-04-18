@@ -1,4 +1,6 @@
-﻿namespace DataAccess.Entities;
+﻿using System.Xml.Serialization;
+
+namespace DataAccess.Entities;
 public class Funding
 {
     public required string Id { get; set; }
@@ -11,7 +13,9 @@ public class Funding
 
     public required decimal Amount { get; set; }
 
+    [XmlIgnore]
     public Organization? Organization { get; set; }
 
+    [XmlIgnore]
     public Project? Project { get; set; }
 }

@@ -1,4 +1,6 @@
-﻿namespace DataAccess.Entities;
+﻿using System.Xml.Serialization;
+
+namespace DataAccess.Entities;
 public class Donation
 {
     public required string Id { get; set; }
@@ -11,7 +13,9 @@ public class Donation
 
     public required decimal Amount { get; set; }
 
+    [XmlIgnore]
     public Donor? Donor { get; set; }
 
+    [XmlIgnore]
     public Organization? Organization { get; set; }
 }

@@ -1,4 +1,6 @@
-﻿namespace DataAccess.Entities;
+﻿using System.Xml.Serialization;
+
+namespace DataAccess.Entities;
 public class Report
 {
     public required string Id { get; set; }
@@ -11,5 +13,6 @@ public class Report
 
     public required decimal LabourSpending { get; set; }
 
+    [XmlIgnore]
     public Project? Project {  get; set; }
 }

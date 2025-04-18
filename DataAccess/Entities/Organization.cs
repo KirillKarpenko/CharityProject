@@ -1,4 +1,6 @@
-﻿namespace DataAccess.Entities;
+﻿using System.Xml.Serialization;
+
+namespace DataAccess.Entities;
 public class Organization
 {
     public required string Id { get; set; }
@@ -13,7 +15,9 @@ public class Organization
 
     public required string Address { get; set;}
 
+    [XmlIgnore]
     public ICollection<Donation> Donations { get; set; } = [];
 
+    [XmlIgnore]
     public ICollection<Funding> Fundings { get; set; } = [];
 }

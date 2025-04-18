@@ -1,13 +1,14 @@
 ﻿using DataAccess;
 using DataAccess.Entities;
 using Microsoft.EntityFrameworkCore;
+using PresentationLayer.Dtos;
 
 namespace PresentationLayer;
 public static class Operations
 {
-    // п.1 - Знайти донорів, які пожертвували в 3 і більше різні фонди, причому 
+    // Знайти донорів, які пожертвували в 3 і більше різні фонди, причому 
     // загальна сума перевищує 10000 грн.
-    public static IList<Donor> GetHighValueDonor(CharityDbContext context)
+    public static List<Donor> GetHighValueDonor(CharityDbContext context)
     {
         IQueryable<Donor> allDonors = context.Donors.Include(d => d.Donations);
         var selectedDonors = allDonors
@@ -19,23 +20,24 @@ public static class Operations
         return selectedDonors;
     }
 
-    // п.2 - Визначити фонди, які отримали найбільше коштів за останній 
+    // Визначити фонди, які отримали найбільше коштів за останній 
     // квартал, але витратили менше 50%.
-    public static IList<Organization> GetRecentTopOrganizations(CharityDbContext context)
+    public static List<Organization> GetRecentTopOrganizations(CharityDbContext context)
     {
         var dateThreshold = DateTime.UtcNow.AddMonths(-3);
         IQueryable<Organization> allOrganizations = context.Organizations.Include(o => o.Fundings);
         var recentTopOrganizations = allOrganizations
-            .Where(o => o.Donations.Where(d => d.TimeOfOperation >= dateThreshold).Sum(d => d.Amount) > 5000
+            .OrderByDescending(o => o.Donations.Sum(d => d.Amount))
+            .Where(o => o.Donations.Where(d => d.TimeOfOperation >= dateThreshold).Sum(d => d.Amount) > 5000 
                 && o.Fundings.Sum(e => e.Amount) < o.Donations.Sum(d => d.Amount) * 0.5m)
             .ToList();
 
         return recentTopOrganizations;
     }
 
-    // п.3 - Визначити донорів, які зробили внески у більше ніж 5 фондів, але не 
+    // Визначити донорів, які зробили внески у більше ніж 5 фондів, але не 
     // більше одного разу в кожен фонд.
-    public static IList<Donor> GetDonorsWhoDonatedOnce(CharityDbContext context, int organisationsQuantity)
+    public static List<Donor> GetDonorsWhoDonatedOnce(CharityDbContext context, int organisationsQuantity)
     {
         IQueryable<Donor> allDonors = context.Donors.Include(d => d.Donations);
         var selectedDonors = allDonors
@@ -46,10 +48,10 @@ public static class Operations
         return selectedDonors;
     }
 
-    // п.4 - Знайти донорів, які фінансували принаймні три різні організації, де 
+    // Знайти донорів, які фінансували принаймні три різні організації, де 
     // кожна організація реалізувала хоча б два проєкти, і визначити
     // середній відсоток витрат на адміністративні потреби у цих проєктах
-    public static IList<Tuple<Donor, decimal>> GetDonorsFundsAdminExpenses(CharityDbContext context)
+    public static List<DonorAdminExpenses> GetDonorsFundsAdminExpenses(CharityDbContext context)
     {
         var allDonors = context.Donors
             .Include(d => d.Donations)
@@ -64,11 +66,11 @@ public static class Operations
             .Where(org => org.Fundings.Count >= 2).Distinct().Count() >= 3)
         .ToList();
 
-        IList<Tuple<Donor, decimal>> result = [];
-        IList<decimal> adminSpendingPercents = [];
+        List<DonorAdminExpenses> result = [];
+        List<decimal> adminSpendingPercents = [];
         foreach (var donor in selectedDonors)
         {
-            var reports = donor.Donations.SelectMany(d => d.Organization.Fundings.Select(f => f.Project.Report)); //SelectMany агрегує
+            var reports = donor.Donations.SelectMany(d => d.Organization.Fundings.Select(f => f.Project.Report));
             foreach (var report in reports)
             {
                 var adminSpending = reports.Sum(r => r.AdministrativeSpending);
@@ -80,85 +82,74 @@ public static class Operations
                 adminSpendingPercents.Add(adminSpendingPercent);
             }
 
-            Tuple<Donor, decimal> resultTuple = Tuple.Create(donor, adminSpendingPercents.Average());
+            var donorAdminExpenses = new DonorAdminExpenses 
+            { 
+                DonorId = donor.Id,
+                DonorName = donor.Name,
+                Amount = adminSpendingPercents.Average()
+            };
 
-            result.Add(resultTuple);
+            result.Add(donorAdminExpenses);
         }
 
         return result;
     }
 
     // З ціллю демонстрації того, що ці функції існують
-    public static void WriteTopDonorsToConsole(CharityDbContext context, int amount)
+    public static List<DonorDonations> GetTopDonorsTotalDonations(CharityDbContext context, int amount)
     {
-        var donors = context.Donations
+        return context.Donations
             .GroupBy(d => d.DonorId)
             .Select(g => new
             {
                 DonorId = g.Key,
                 TotalDonated = g.Sum(d => d.Amount)
             })
-            .OrderByDescending(d => d.TotalDonated)
+            .OrderByDescending(g => g.TotalDonated)
             .Take(amount)
-            .Join(context.Donors, d => d.DonorId, donor => donor.Id, (d, donor) => new
-            {
-                donor.Name,
-                d.TotalDonated
-            })
+            .Join(context.Donors,
+                  g => g.DonorId,
+                  donor => donor.Id,
+                  (g, donor) => new DonorDonations
+                  {
+                      Name = donor.Name,
+                      Donated = g.TotalDonated
+                  })
             .ToList();
-
-        Console.WriteLine($"\nTop-{amount} donors:");
-        foreach (var donor in donors)
-        {
-            Console.WriteLine($"Name: {donor.Name}, Total donated: {donor.TotalDonated}");
-        }
     }
 
     // 3 методи з цукром для такої ж демонстрації
     // Виводить статистику по донатам до кожного фонду
-    public static void WriteDonationStatsToConsole(CharityDbContext context)
+    public static List<OrganizationStats> GetDonationStats(CharityDbContext context)
     {
-        var orgDonationStats =
-            (from donation in context.Donations
+        return (from donation in context.Donations
              group donation by donation.OrganizationId into fundGroup
              where fundGroup.Count() >= 5
-             select new
+             select new OrganizationStats
              {
                  OrganizationId = fundGroup.Key,
                  TotalDonations = fundGroup.Sum(d => d.Amount),
                  MaxDonation = fundGroup.Max(d => d.Amount)
              })
              .ToList();
-
-        Console.WriteLine("\nDonation stats for each fund that got more than 5 donations:");
-        foreach (var entry in orgDonationStats)
-        {
-            Console.WriteLine($"Fund id: {entry.OrganizationId}, Total donations: {entry.TotalDonations}, Biggest donation: {entry.MaxDonation}");
-        }
     }
 
     // Об'єднує донаторів і фонди
-    public static void WriteDonorsAndOrganizationsToConsole(CharityDbContext context)
+    public static List<DonorAndOrganizations> GetDonorsAndOrganizations(CharityDbContext context)
     {
-        var donorFunds =
-            (from donation in context.Donations
+        return (from donation in context.Donations
              join donor in context.Donors on donation.DonorId equals donor.Id
              join organization in context.Organizations on donation.OrganizationId equals organization.Id
-             select new
+             select new DonorAndOrganizations
              {
                  DonorName = donor.Name,
                  OrganizationName = organization.Name,
                  Amount = donation.Amount
              }).ToList();
-        Console.WriteLine("\nDonors and funds they`ve donated to:");
-        foreach (var entry in donorFunds)
-        {
-            Console.WriteLine($"Donor name: {entry.DonorName}, Fund name: {entry.OrganizationName}, Amount donated: {entry.Amount}");
-        }
     }
 
     // Виводить всіх донаторів за останній місяць
-    public static IList<Donor> GetLastMonthActivity(CharityDbContext context)
+    public static List<Donor> GetLastMonthActivity(CharityDbContext context)
     {
         var donors =
             (from donor in context.Donors
@@ -170,7 +161,7 @@ public static class Operations
     }
 
     // Виводить всі фонди, яким задонатили більше за amount
-    public static IList<Organization> GetOrganizationsWithTotalDonationsAbove(CharityDbContext context, decimal amount)
+    public static List<Organization> GetOrganizationsWithTotalDonationsAbove(CharityDbContext context, decimal amount)
     {
         var organizations = context.Donations
             .GroupBy(d => d.OrganizationId)
@@ -191,5 +182,46 @@ public static class Operations
             .Average();
 
         return avgDonationPerOrg;
+    }
+
+    // п.1 - Знайти донорів, які жертвували найбільшу кількість коштів на 
+    // проєкти, і для кожного донора вивести середній розмір жертви.
+    public static List<DonorDonations> GetTopDonorsAverageDonations(CharityDbContext context, int amount)
+    {
+        return context.Donations
+            .GroupBy(d => d.Donor)
+            .Select(g => new
+            {
+                g.Key.Name,
+                Total = g.Sum(d => d.Amount),
+                Avg = g.Average(d => d.Amount)
+            })
+            .OrderByDescending(x => x.Total)
+            .Select(x => new DonorDonations
+            {
+                Name = x.Name,
+                Donated = x.Avg,
+            })
+            .Take(amount)
+            .ToList();
+    }
+
+    // п.2 -  Визначити організації, які отримали найбільше фінансування від спонсорів.
+    public static List<OrganizationStats> GetTopFundedOrganizations(CharityDbContext context, int amount)
+    {
+        return context.Organizations
+            .Select(o => new
+            {
+                o.Id,
+                Total = o.Fundings.Sum(f => f.Amount)
+            })
+            .OrderByDescending(x => x.Total)
+            .Select(x => new OrganizationStats
+            {
+                OrganizationId = x.Id,
+                TotalDonations = x.Total
+            })
+            .Take(amount)
+            .ToList();
     }
 }
