@@ -96,25 +96,27 @@ public static class Operations
     }
 
     // З ціллю демонстрації того, що ці функції існують
-    public static List<DonorDonations> GetTopDonorsTotalDonations(CharityDbContext context, int amount)
+    public static List<DonorDonations> GetTopDonorsTotalDonations(CharityDbContext context)
     {
-        return context.Donations
+        var grouped = context.Donations
+            .Include(d => d.Donor)
+            .AsEnumerable()
             .GroupBy(d => d.DonorId)
             .Select(g => new
             {
-                DonorId = g.Key,
-                TotalDonated = g.Sum(d => d.Amount)
+                Donor = g.First().Donor,
+                Total = g.Sum(d => d.Amount)
+            });
+
+        var maxTotal = grouped.Max(x => x.Total);
+
+        return grouped
+            .Where(x => x.Total == maxTotal)
+            .Select(x => new DonorDonations
+            {
+                Name = x.Donor.Name,
+                Donated = x.Total
             })
-            .OrderByDescending(g => g.TotalDonated)
-            .Take(amount)
-            .Join(context.Donors,
-                  g => g.DonorId,
-                  donor => donor.Id,
-                  (g, donor) => new DonorDonations
-                  {
-                      Name = donor.Name,
-                      Donated = g.TotalDonated
-                  })
             .ToList();
     }
 
@@ -186,42 +188,50 @@ public static class Operations
 
     // п.1 - Знайти донорів, які жертвували найбільшу кількість коштів на 
     // проєкти, і для кожного донора вивести середній розмір жертви.
-    public static List<DonorDonations> GetTopDonorsAverageDonations(CharityDbContext context, int amount)
+    public static List<DonorDonations> GetTopDonorsAverageDonations(CharityDbContext context)
     {
-        return context.Donations
+        var grouped = context.Donations
             .GroupBy(d => d.Donor)
             .Select(g => new
             {
-                g.Key.Name,
+                Donor = g.Key,
                 Total = g.Sum(d => d.Amount),
                 Avg = g.Average(d => d.Amount)
             })
-            .OrderByDescending(x => x.Total)
+            .ToList();
+
+        var maxTotal = grouped.Max(x => x.Total);
+
+        return grouped
+            .Where(x => x.Total == maxTotal)
             .Select(x => new DonorDonations
             {
-                Name = x.Name,
-                Donated = x.Avg,
+                Name = x.Donor.Name,
+                Donated = x.Avg
             })
-            .Take(amount)
             .ToList();
     }
 
     // п.2 -  Визначити організації, які отримали найбільше фінансування від спонсорів.
-    public static List<OrganizationStats> GetTopFundedOrganizations(CharityDbContext context, int amount)
+    public static List<OrganizationStats> GetTopFundedOrganizations(CharityDbContext context)
     {
-        return context.Organizations
+        var allOrgs = context.Organizations
             .Select(o => new
             {
                 o.Id,
                 Total = o.Fundings.Sum(f => f.Amount)
             })
-            .OrderByDescending(x => x.Total)
+            .ToList();
+
+        var maxTotal = allOrgs.Max(x => x.Total);
+
+        return allOrgs
+            .Where(x => x.Total == maxTotal)
             .Select(x => new OrganizationStats
             {
                 OrganizationId = x.Id,
                 TotalDonations = x.Total
             })
-            .Take(amount)
             .ToList();
     }
 }

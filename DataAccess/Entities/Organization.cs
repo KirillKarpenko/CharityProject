@@ -1,4 +1,5 @@
-﻿using System.Xml.Serialization;
+﻿using System.Text.Json.Serialization;
+using System.Xml.Serialization;
 
 namespace DataAccess.Entities;
 public class Organization
@@ -16,8 +17,10 @@ public class Organization
     public required string Address { get; set;}
 
     [XmlIgnore]
+    [JsonIgnore]
     public ICollection<Donation> Donations { get; set; } = [];
 
     [XmlIgnore]
+    [JsonIgnore]
     public ICollection<Funding> Fundings { get; set; } = [];
 }
